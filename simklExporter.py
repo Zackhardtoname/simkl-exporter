@@ -1,10 +1,11 @@
 import requests
-import csv
+from pandas import DataFrame
 import configparser
 import webbrowser
 import pyautogui
 import time
 import json
+
 
 client_id = ""  # insert simkl client_id in quotation marks here
 
@@ -12,52 +13,6 @@ client_id = ""  # insert simkl client_id in quotation marks here
 def make_request(url, headers=None):
     response = requests.get(url, headers=headers)
     return response.json()
-
-
-def make_csv(data):
-    with open('./simklData.csv', mode='w') as movie_file:
-        fieldnames = ['Year', 'imdbID', 'tmdbID', 'WatchedDate', 'Rating10', 'Title']
-        writer = csv.DictWriter(movie_file, fieldnames=fieldnames)
-        writer.writeheader()
-        for movie in data['movies']:
-            try:
-                year = str(movie['movie']['year'])
-            except:
-                year = ""
-            try:
-                imdb = str(movie['movie']['ids']['imdb'])
-            except:
-                imdb = ""
-            try:
-                tmdb = str(movie['movie']['ids']['tmdb'])
-            except:
-                tmdb = ""
-            try:
-                watched = str(movie['last_watched_at'])[:10]
-            except:
-                watched = ""
-            try:
-                rating10 = str(movie['user_rating']) if str(movie['user_rating']) != "None" else ""
-            except:
-                rating10 = ""
-            try:
-                movietitle = str(movie['movie']['title'])
-            except:
-                movietitle = ""
-            writer.writerow({
-                'Year': year,
-                'imdbID': imdb,
-                'tmdbID': tmdb,
-                'WatchedDate': watched,
-                'Rating10': rating10,
-                'Title': movietitle
-            })
-            print("Imported " + movietitle + " (" + year + "), watched on " + watched + (
-                ", rated " + rating10 if len(rating10) > 0 else ""))
-
-
-def map_data(data):
-    return data['movie']['ids']
 
 
 config = configparser.ConfigParser()
@@ -85,7 +40,7 @@ try:
     time.sleep(1)
     pyautogui.press('enter')
     print("Please wait...")
-    time.sleep(10)
+    time.sleep(5)
     print("Continuing")
     code_verification_request = make_request(code_verification_url)
     if 'access_token' in code_verification_request:
@@ -106,12 +61,15 @@ if not is_user_authenticated:
         access_token = code_verification_request['access_token']
         is_user_authenticated = True
 
-get_movies_list_url = "https://api.simkl.com/sync/all-items/movies/completed"
+get_movies_list_url = "https://api.simkl.com/sync/all-items"
 
-z = make_request(get_movies_list_url, {'Authorization': 'Bearer ' + access_token, 'simkl-api-key': client_id})
-with open('./simklData.json', 'w') as f: json.dump(z, f)
+response = make_request(get_movies_list_url, {'Authorization': 'Bearer ' + access_token, 'simkl-api-key': client_id})
 
-data = list(map(map_data, z['movies']))
-make_csv(z)
+with open('./simklData.json', 'w') as f:
+    json.dump(response, f)
 
-print("Finished creating csv")
+for category, value in response.items():
+    df = DataFrame.from_dict(response[category])
+    df.to_csv(f"./simklData_{category}.csv", encoding='utf-8', index=False)
+
+print("Backup finished")
